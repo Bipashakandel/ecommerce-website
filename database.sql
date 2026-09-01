@@ -1,1 +1,100 @@
--- Create Database\nCREATE DATABASE IF NOT EXISTS ecommerce_db;\nUSE ecommerce_db;\n\n-- Users Table\nCREATE TABLE IF NOT EXISTS users (\n    id INT PRIMARY KEY AUTO_INCREMENT,\n    first_name VARCHAR(100) NOT NULL,\n    last_name VARCHAR(100) NOT NULL,\n    email VARCHAR(100) UNIQUE NOT NULL,\n    password VARCHAR(255) NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Products Table\nCREATE TABLE IF NOT EXISTS products (\n    id INT PRIMARY KEY AUTO_INCREMENT,\n    name VARCHAR(255) NOT NULL,\n    description TEXT NOT NULL,\n    price DECIMAL(10, 2) NOT NULL,\n    category VARCHAR(100),\n    stock INT DEFAULT 0,\n    image_url VARCHAR(255),\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Orders Table\nCREATE TABLE IF NOT EXISTS orders (\n    id INT PRIMARY KEY AUTO_INCREMENT,\n    user_id INT NOT NULL,\n    total_amount DECIMAL(10, 2) NOT NULL,\n    shipping_address TEXT,\n    status VARCHAR(50) DEFAULT 'pending',\n    payment_status VARCHAR(50) DEFAULT 'pending',\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (user_id) REFERENCES users(id)\n);\n\n-- Order Items Table\nCREATE TABLE IF NOT EXISTS order_items (\n    id INT PRIMARY KEY AUTO_INCREMENT,\n    order_id INT NOT NULL,\n    product_id INT NOT NULL,\n    quantity INT NOT NULL,\n    price DECIMAL(10, 2) NOT NULL,\n    FOREIGN KEY (order_id) REFERENCES orders(id),\n    FOREIGN KEY (product_id) REFERENCES products(id)\n);\n\n-- Sample Products Data\nINSERT INTO products (name, description, price, category, stock, image_url) VALUES\n('Wireless Headphones', 'High-quality wireless headphones with noise cancellation', 79.99, 'electronics', 50, 'https://via.placeholder.com/300x300?text=Wireless+Headphones'),\n('Smart Watch', 'Feature-rich smartwatch with fitness tracking', 199.99, 'electronics', 30, 'https://via.placeholder.com/300x300?text=Smart+Watch'),\n('USB-C Cable', 'Durable USB-C charging cable 2 meters long', 12.99, 'electronics', 100, 'https://via.placeholder.com/300x300?text=USB-C+Cable'),\n('Laptop Stand', 'Adjustable aluminum laptop stand', 34.99, 'electronics', 40, 'https://via.placeholder.com/300x300?text=Laptop+Stand'),\n('Mechanical Keyboard', 'RGB Mechanical Gaming Keyboard', 89.99, 'electronics', 25, 'https://via.placeholder.com/300x300?text=Keyboard'),\n('Wireless Mouse', 'Ergonomic wireless mouse with precision tracking', 29.99, 'electronics', 60, 'https://via.placeholder.com/300x300?text=Wireless+Mouse'),\n('4K Webcam', 'Ultra HD webcam for streaming and calls', 99.99, 'electronics', 20, 'https://via.placeholder.com/300x300?text=4K+Webcam'),\n('Phone Charger', 'Fast charging USB-C phone charger', 19.99, 'electronics', 80, 'https://via.placeholder.com/300x300?text=Phone+Charger'),\n('Desk Lamp', 'LED desk lamp with adjustable brightness', 39.99, 'home', 45, 'https://via.placeholder.com/300x300?text=Desk+Lamp'),\n('Phone Stand', 'Adjustable phone stand for desk', 14.99, 'home', 70, 'https://via.placeholder.com/300x300?text=Phone+Stand'),\n('Bluetooth Speaker', 'Portable Bluetooth speaker with 12hr battery', 59.99, 'electronics', 35, 'https://via.placeholder.com/300x300?text=Bluetooth+Speaker'),\n('USB Hub', '7-port USB 3.0 hub with power adapter', 44.99, 'electronics', 50, 'https://via.placeholder.com/300x300?text=USB+Hub');\n
+-- ShopHub E-Commerce Database Schema
+
+-- Create Database
+CREATE DATABASE IF NOT EXISTS ecommerce_db;
+USE ecommerce_db;
+
+-- Users Table
+CREATE TABLE IF NOT EXISTS users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    zip VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Products Table
+CREATE TABLE IF NOT EXISTS products (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
+    price DECIMAL(10, 2) NOT NULL,
+    stock INT DEFAULT 0,
+    image_url VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_category (category),
+    INDEX idx_name (name)
+);
+
+-- Orders Table
+CREATE TABLE IF NOT EXISTS orders (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    total_amount DECIMAL(10, 2) NOT NULL,
+    shipping_address TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    payment_status VARCHAR(50) DEFAULT 'pending',
+    payment_method VARCHAR(50),
+    transaction_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+);
+
+-- Order Items Table
+CREATE TABLE IF NOT EXISTS order_items (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    order_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    INDEX idx_order_id (order_id)
+);
+
+-- Wishlist Table
+CREATE TABLE IF NOT EXISTS wishlist (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    product_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_wishlist (user_id, product_id),
+    INDEX idx_user_id (user_id)
+);
+
+-- Sample Products
+INSERT INTO products (name, description, category, price, stock, image_url) VALUES
+('Wireless Headphones', 'Premium wireless headphones with noise cancellation', 'Electronics', 4999.00, 50, 'https://via.placeholder.com/150'),
+('USB-C Cable', 'Durable USB-C charging and data cable', 'Accessories', 499.00, 200, 'https://via.placeholder.com/150'),
+('Phone Case', 'Protective phone case for all models', 'Accessories', 699.00, 150, 'https://via.placeholder.com/150'),
+('Screen Protector', 'Tempered glass screen protector', 'Accessories', 299.00, 300, 'https://via.placeholder.com/150'),
+('Portable Charger', '20000mAh portable power bank', 'Electronics', 1999.00, 75, 'https://via.placeholder.com/150'),
+('Laptop Stand', 'Adjustable aluminum laptop stand', 'Accessories', 1499.00, 40, 'https://via.placeholder.com/150'),
+('Mechanical Keyboard', 'RGB backlit mechanical gaming keyboard', 'Electronics', 3999.00, 30, 'https://via.placeholder.com/150'),
+('USB Hub', 'Multi-port USB 3.0 hub', 'Accessories', 1299.00, 60, 'https://via.placeholder.com/150');
+
+-- Sample Users (password: password123)
+INSERT INTO users (first_name, last_name, email, password, phone) VALUES
+('John', 'Doe', 'john@example.com', '$2y$10$WQQBGqLQj3l2RnVz5c5GVeUvHVLBZe2rZj7YvJzKvRvZhX0Ke9Rge', '+977-1234567890'),
+('Jane', 'Smith', 'jane@example.com', '$2y$10$WQQBGqLQj3l2RnVz5c5GVeUvHVLBZe2rZj7YvJzKvRvZhX0Ke9Rge', '+977-9876543210');
+
+-- Create Indexes for Better Performance
+CREATE INDEX idx_products_price ON products(price);
+CREATE INDEX idx_orders_payment_status ON orders(payment_status);
+CREATE INDEX idx_order_items_product_id ON order_items(product_id);

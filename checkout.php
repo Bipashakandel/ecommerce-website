@@ -2,58 +2,52 @@
 session_start();
 include 'config/db_config.php';
 
-if(empty($_SESSION['cart'])) {
-    header('Location: cart.php');
-    exit;
-}
-
 if(!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=checkout');
     exit;
 }
 
-$cart_total = 0;
-foreach($_SESSION['cart'] as $item) {
-    $cart_total += $item['price'] * $item['quantity'];
-}
-
-$shipping = $cart_total > 50 ? 0 : 10;
-$tax = $cart_total * 0.1;
-$grand_total = $cart_total + $shipping + $tax;
+$error = '';
 
 if($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $first_name = htmlspecialchars($_POST['first_name']);
-    $last_name = htmlspecialchars($_POST['last_name']);
-    $email = htmlspecialchars($_POST['email']);
-    $phone = htmlspecialchars($_POST['phone']);
-    $address = htmlspecialchars($_POST['address']);
+    $shipping_address = htmlspecialchars($_POST['shipping_address']);
     $city = htmlspecialchars($_POST['city']);
-    $state = htmlspecialchars($_POST['state']);
-    $zip = htmlspecialchars($_POST['zip']);
+    $phone = htmlspecialchars($_POST['phone']);
     $payment_method = htmlspecialchars($_POST['payment_method']);
-
-    // Store order details in session for payment processing
-    $_SESSION['order'] = [
-        'first_name' => $first_name,
-        'last_name' => $last_name,
-        'email' => $email,
-        'phone' => $phone,
-        'address' => $address,
-        'city' => $city,
-        'state' => $state,
-        'zip' => $zip,
-        'payment_method' => $payment_method,
-        'total' => $grand_total
-    ];
-
-    if($payment_method == 'esewa') {
-        header('Location: esewa_payment.php');
-    } else if($payment_method == 'khalti') {
-        header('Location: khalti_payment.php');
-    } else if($payment_method == 'card') {
-        header('Location: payment.php');
+    
+    // Get cart from request (passed via hidden form field)
+    $cart_data = isset($_POST['cart_data']) ? json_decode($_POST['cart_data'], true) : [];
+    $total_amount = isset($_POST['total_amount']) ? floatval($_POST['total_amount']) : 0;
+    
+    if(empty($cart_data)) {
+        $error = 'Cart is empty';
+    } else if(empty($shipping_address) || empty($city) || empty($phone)) {
+        $error = 'Please fill all required fields';
+    } else {
+        try {
+            // Create order
+            $full_address = $shipping_address . ', ' . $city;
+            $stmt = $pdo->prepare('INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, status, payment_status) VALUES (?, ?, ?, ?, "pending", "pending")');
+            $stmt->execute([$_SESSION['user_id'], $total_amount, $full_address, $payment_method]);
+            $order_id = $pdo->lastInsertId();
+            
+            // Add order items
+            foreach($cart_data as $item) {
+                $stmt = $pdo->prepare('INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)');
+                $stmt->execute([$order_id, $item['id'], $item['quantity'], $item['price']]);
+            }
+            
+            // Redirect to payment
+            if($payment_method == 'esewa') {
+                header('Location: esewa_payment.php?order_id=' . $order_id);
+            } else {
+                header('Location: order_success.php?order_id=' . $order_id);
+            }
+            exit;
+        } catch (Exception $e) {
+            $error = 'Error creating order. Please try again.';
+        }
     }
-    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -71,111 +65,82 @@ if($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="container">
         <h1>Checkout</h1>
         
-        <div class="checkout-wrapper">
-            <form method="POST" class="checkout-form">
-                <div class="form-section">
-                    <h2>Billing Information</h2>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="first_name">First Name *</label>
-                            <input type="text" id="first_name" name="first_name" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="last_name">Last Name *</label>
-                            <input type="text" id="last_name" name="last_name" required>
-                        </div>
-                    </div>
+        <?php if($error): ?>
+            <div class="alert alert-error"><?php echo $error; ?></div>
+        <?php endif; ?>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="email">Email *</label>
-                            <input type="email" id="email" name="email" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="phone">Phone Number *</label>
-                            <input type="tel" id="phone" name="phone" required>
-                        </div>
+        <div class="checkout-container">
+            <div class="checkout-form">
+                <form id="checkoutForm" method="POST">
+                    <h2>Shipping Information</h2>
+                    
+                    <div class="form-group">
+                        <label for="full_name">Full Name</label>
+                        <input type="text" id="full_name" value="<?php echo htmlspecialchars($_SESSION['user_name'] ?? ''); ?>" disabled>
                     </div>
 
                     <div class="form-group">
-                        <label for="address">Address *</label>
-                        <input type="text" id="address" name="address" required>
+                        <label for="email">Email</label>
+                        <input type="email" id="email" value="<?php echo htmlspecialchars($_SESSION['user_email'] ?? ''); ?>" disabled>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="city">City *</label>
-                            <input type="text" id="city" name="city" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="state">State/Province *</label>
-                            <input type="text" id="state" name="state" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="zip">ZIP Code *</label>
-                            <input type="text" id="zip" name="zip" required>
-                        </div>
+                    <div class="form-group">
+                        <label for="phone">Phone Number *</label>
+                        <input type="tel" id="phone" name="phone" required>
                     </div>
-                </div>
 
-                <div class="form-section">
-                    <h2>Payment Method</h2>
+                    <div class="form-group">
+                        <label for="shipping_address">Shipping Address *</label>
+                        <textarea id="shipping_address" name="shipping_address" rows="3" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="city">City *</label>
+                        <input type="text" id="city" name="city" required>
+                    </div>
+
+                    <h2 style="margin-top: 2rem;">Payment Method</h2>
                     
-                    <div class="payment-options">
-                        <label class="payment-option">
+                    <div class="form-group">
+                        <label>
                             <input type="radio" name="payment_method" value="esewa" checked>
-                            <div class="payment-label">
-                                <i class="fas fa-wallet"></i>
-                                <span>eSewa</span>
-                            </div>
-                        </label>
-                        <label class="payment-option">
-                            <input type="radio" name="payment_method" value="khalti">
-                            <div class="payment-label">
-                                <i class="fas fa-mobile-alt"></i>
-                                <span>Khalti</span>
-                            </div>
-                        </label>
-                        <label class="payment-option">
-                            <input type="radio" name="payment_method" value="card">
-                            <div class="payment-label">
-                                <i class="fas fa-credit-card"></i>
-                                <span>Credit/Debit Card</span>
-                            </div>
+                            eSewa
                         </label>
                     </div>
-                </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="radio" name="payment_method" value="cash_on_delivery">
+                            Cash on Delivery
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="radio" name="payment_method" value="bank_transfer">
+                            Bank Transfer
+                        </label>
+                    </div>
 
-                <button type="submit" class="btn btn-primary btn-lg">Continue to Payment</button>
-            </form>
+                    <input type="hidden" id="cart_data" name="cart_data" value="">
+                    <input type="hidden" id="total_amount" name="total_amount" value="">
+                    
+                    <button type="button" class="btn btn-primary btn-block" onclick="submitCheckoutForm()">Place Order</button>
+                </form>
+            </div>
 
-            <div class="order-summary">
-                <h2>Order Summary</h2>
-                <div class="summary-items">
-                    <?php foreach($_SESSION['cart'] as $item): ?>
-                        <div class="summary-item">
-                            <span class="item-name"><?php echo htmlspecialchars($item['name']); ?> (x<?php echo $item['quantity']; ?>)</span>
-                            <span class="item-price">$<?php echo number_format($item['price'] * $item['quantity'], 2); ?></span>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-                <hr>
-                <div class="summary-row">
+            <div class="checkout-order-summary">
+                <h3>Order Summary</h3>
+                <div id="checkoutItems"></div>
+                <div class="summary-item" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #ddd;">
                     <span>Subtotal:</span>
-                    <span>$<?php echo number_format($cart_total, 2); ?></span>
+                    <span id="checkoutSubtotal">Rs. 0.00</span>
                 </div>
-                <div class="summary-row">
+                <div class="summary-item">
                     <span>Shipping:</span>
-                    <span><?php echo $shipping == 0 ? 'FREE' : '$' . number_format($shipping, 2); ?></span>
+                    <span id="checkoutShipping">Rs. 200.00</span>
                 </div>
-                <div class="summary-row">
-                    <span>Tax (10%):</span>
-                    <span>$<?php echo number_format($tax, 2); ?></span>
-                </div>
-                <div class="summary-row total">
+                <div class="summary-item summary-total">
                     <span>Total:</span>
-                    <span>$<?php echo number_format($grand_total, 2); ?></span>
+                    <span id="checkoutTotal">Rs. 0.00</span>
                 </div>
             </div>
         </div>
@@ -183,5 +148,48 @@ if($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <?php include 'includes/footer.php'; ?>
     <script src="js/main.js"></script>
+    <script>
+        function submitCheckoutForm() {
+            const form = document.getElementById('checkoutForm');
+            document.getElementById('cart_data').value = JSON.stringify(cart);
+            
+            const subtotal = getCartTotal();
+            const shipping = subtotal > 2500 ? 0 : 200;
+            document.getElementById('total_amount').value = (subtotal + shipping).toFixed(2);
+            
+            form.submit();
+        }
+
+        function displayCheckoutSummary() {
+            const checkoutItems = document.getElementById('checkoutItems');
+            checkoutItems.innerHTML = '';
+            
+            cart.forEach(item => {
+                const itemEl = document.createElement('div');
+                itemEl.style.marginBottom = '1rem';
+                itemEl.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span>${item.name}</span>
+                        <span>x${item.quantity}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #666;">
+                        <span>Rs. ${item.price.toFixed(2)} each</span>
+                        <span>Rs. ${(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                `;
+                checkoutItems.appendChild(itemEl);
+            });
+            
+            const subtotal = getCartTotal();
+            const shipping = subtotal > 2500 ? 0 : 200;
+            const total = subtotal + shipping;
+            
+            document.getElementById('checkoutSubtotal').textContent = 'Rs. ' + subtotal.toFixed(2);
+            document.getElementById('checkoutShipping').textContent = shipping === 0 ? 'Free' : 'Rs. ' + shipping.toFixed(2);
+            document.getElementById('checkoutTotal').textContent = 'Rs. ' + total.toFixed(2);
+        }
+        
+        document.addEventListener('DOMContentLoaded', displayCheckoutSummary);
+    </script>
 </body>
 </html>
